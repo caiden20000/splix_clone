@@ -1,11 +1,68 @@
-import express from 'express'
-const app = express()
-const port = 3000
+import { WebSocket, WebSocketServer } from 'ws';
+import http, { ClientRequest, IncomingMessage, RequestListener, ServerResponse } from 'http';
+import { v4 as uuidv4 } from 'uuid';
+import * as fs from 'node:fs/promises';
 
-app.get('/', (req: any, res: any) => {
-  res.send('Hello World! v2')
-})
+function requestListener(req: IncomingMessage, res: ServerResponse) {
+  if (req.url == "/index") {
+    fs.readFile(__dirname + "/index.html")
+      .then(contents => {
+      res.setHeader("Content-Type", "text/html");
+      res.writeHead(200);
+      res.end(contents);  // Pass in the text/html here
+    }).catch(err => {
+      res.writeHead(500);
+      res.end(err);
+      return;
+    });
+  } else {
+    res.writeHead(404);
+    res.end("Content not found.")
+  }
+}
 
-app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`)
+const server = http.createServer(requestListener);
+const wsServer = new WebSocketServer({ server });
+const port = 8000;
+server.listen(port, () => {
+  console.log(`WebSocket server is running on port ${port}`);
+});
+
+type Client = {
+  uuid: string,
+  con: WebSocket
+}
+
+var clients = new Map<string, WebSocket>();
+
+function addClient(uuid: string, con: WebSocket): void {
+  clients.set(uuid, con);
+}
+
+function removeClient(uuid: string): boolean {
+  return clients.delete(uuid);
+}
+
+wsServer.on("connection", (ws: WebSocket) => {
+  let userID = uuidv4();
+  
+  console.log("Received connection.");
+
+  ws.on("open", () => {
+    addClient(userID, ws);
+    console.log("Connection opened. User added. " + userID)
+  })
+
+  ws.on("message", event => {
+    console.log("Received message: " + event)
+  })
+
+  ws.on("error", event => {
+    console.log("Error: " + event);
+  })
+
+  ws.on("close", event => {
+    console.log("Connection closed. User removed. " + userID);
+    removeClient(userID);
+  })
 })
