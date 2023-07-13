@@ -4,7 +4,7 @@ Simple splix.io clone.
 TODO:
 - ~~Plan the project~~
 - Back end
-  - ~~Determine server platform~~: Python/Flask
+  - ~~Determine server platform~~: Node/Express
   - Make websocket session outline
   - Create game representation (board, player, interaction functions)
   - Create websocket action request pipeline

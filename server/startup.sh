@@ -1,1 +1,1 @@
-python -m flask --app server run
+node server.js
