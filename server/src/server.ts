@@ -33,6 +33,59 @@ type Client = {
   con: WebSocket
 }
 
+// Position requests: Asking for position of player.
+// Turning requests: Trying to change direction of character.
+// Map requests: Asks for a chunk of the map  to display.
+type GameMessage = {
+  requestType: "position";
+} | {
+  requestType: "turning";
+  direction: "left" | "right";
+} | {
+  requestType: "map";
+  xPos: number;
+  yPos: number;
+}
+
+type Player = {
+  uuid: string;
+  xPos: number;
+  yPos: number;
+  facing: "left" | "right" | "up" | "down";
+}
+
+type PlayerTrail = {
+  playerUuid: string;
+  trail: {xPos: number, yPos: number}[];
+}
+
+// Represent map by every individual square containing UUID of player who owns it.
+// Alternate method: Represent by many rects, consolodate redundant rects.
+// First one is easier to understand at first tho so that one's first.
+var map: string[][] = [];
+const mapWidth = 100;
+const mapHeight = 100;
+function initMap() {
+  fillRect(0, 0, mapWidth, mapHeight, "0");
+}
+
+function fillRect(xPos: number, yPos: number, width: number, height: number, uuid: string) {
+  for (let x = xPos; x<xPos+width; x++) {
+    for (let y = yPos; y<yPos+height; y++) {
+      map[x][y] = uuid;
+    }
+  }
+}
+
+function getMapSquareAt(xPos: number, yPos: number): string {
+  return map[xPos][yPos];
+}
+
+// Units per second
+const playerSpeed = 2;
+
+var players = new Map<string, Player>();
+
 var clients = new Map<string, WebSocket>();
 
 function addClient(uuid: string, con: WebSocket): void {
