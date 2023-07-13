@@ -45,13 +45,8 @@ function removeClient(uuid: string): boolean {
 
 wsServer.on("connection", (ws: WebSocket) => {
   let userID = uuidv4();
-  
-  console.log("Received connection.");
-
-  ws.on("open", () => {
-    addClient(userID, ws);
-    console.log("Connection opened. User added. " + userID)
-  })
+  addClient(userID, ws);
+  console.log("Connection opened. User added. " + userID)
 
   ws.on("message", event => {
     console.log("Received message: " + event)

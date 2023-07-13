@@ -1,1 +1,8 @@
-<h1>testo</h1>
+
+<script>
+    let hostname = window.location.hostname;
+    const ws = new WebSocket("wss://" + hostname)
+    ws.addEventListener("open", (event) => {
+        ws.send("Messaeaage");
+    })
+</script>
