@@ -43,42 +43,81 @@ type GameMessage = {
   direction: "left" | "right";
 } | {
   requestType: "map";
-  xPos: number;
-  yPos: number;
+  pos: Point;
+  // TODO
+}
+
+type Point = {
+  x: number;
+  y: number;
 }
 
 type Player = {
   uuid: string;
-  xPos: number;
-  yPos: number;
+  pos: Point;
   facing: "left" | "right" | "up" | "down";
 }
 
 type PlayerTrail = {
-  playerUuid: string;
-  trail: {xPos: number, yPos: number}[];
+  uuid: string; // Player uuid
+  trail: Point[]; // Every square the player traveled through outside their area.
 }
 
-// Represent map by every individual square containing UUID of player who owns it.
-// Alternate method: Represent by many rects, consolodate redundant rects.
-// First one is easier to understand at first tho so that one's first.
-var map: string[][] = [];
+type PlayerArea = {
+  uuid: string; // Player uuid
+  bottomLeft: Point;
+  topRight: Point;
+}
+
+// Represent map with an array of PlayerAreas
+// 0,0 is bottommost leftestmost, like quadrant 1 of cartesian plane
+var map: PlayerArea[] = [];
 const mapWidth = 100;
 const mapHeight = 100;
-function initMap() {
-  fillRect(0, 0, mapWidth, mapHeight, "0");
+
+
+function addArea(point1: Point, point2: Point, uuid: string): void {
+  // Find the bottomLeft and topRight points.
+  let lowY, highY, lowX, highX;
+  lowX = point1.x < point2.x ? point1.x : point2.x;
+  lowY = point1.y < point2.y ? point1.y : point2.y;
+  highX = point1.x > point2.x ? point1.x : point2.x;
+  highY = point1.y > point2.y ? point1.y : point2.y;
+  let bottomLeft: Point = {x: lowX, y: lowY};
+  let topRight: Point = {x: highX, y: highY};
+  // Put a PlayerArea object into map.
+  map.push({uuid, bottomLeft, topRight});
 }
 
-function fillRect(xPos: number, yPos: number, width: number, height: number, uuid: string) {
-  for (let x = xPos; x<xPos+width; x++) {
-    for (let y = yPos; y<yPos+height; y++) {
-      map[x][y] = uuid;
+// Returns true if one area overlaps the other
+function doAreasOverlap(area1: PlayerArea, area2: PlayerArea): boolean {
+
+}
+
+// Returns an array of areas that cover the same space as (positive - negative) area
+function subtractAreaFromArea(positive: PlayerArea, negative: PlayerArea): PlayerArea[] {
+
+}
+
+// Returns an array of areas that are consolodated to not have overlapping areas
+function simplifyAreas(areas: PlayerArea[]): PlayerArea[] {
+
+}
+
+function isPointInArea(point: Point, area: PlayerArea): boolean {
+  if (area.bottomLeft.x <= point.x && area.bottomLeft.y <= point.y 
+    && area.topRight.x >= point.x && area.topRight.y >= point.y) {
+      return true;
     }
-  }
+  return false;
 }
 
-function getMapSquareAt(xPos: number, yPos: number): string {
-  return map[xPos][yPos];
+function getMapValueAt(point: Point): string | null {
+  for (let area of map) {
+    let result = isPointInArea(point, area);
+    if (result == true) return area.uuid;
+  }
+  return null;
 }
 
 // Units per second
