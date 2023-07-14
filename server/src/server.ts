@@ -89,9 +89,31 @@ function addArea(point1: Point, point2: Point, uuid: string): void {
   map.push({uuid, bottomLeft, topRight});
 }
 
+function getPointsFromArea(area: PlayerArea): Point[] {
+  let points: Point[] = [];
+  points.push({x: area.bottomLeft.x, y: area.bottomLeft.y});
+  points.push({x: area.bottomLeft.x, y: area.topRight.y});
+  points.push({x: area.topRight.x, y: area.bottomLeft.y});
+  points.push({x: area.topRight.x, y: area.topRight.y});
+  return points;
+}
+
 // Returns true if one area overlaps the other
 function doAreasOverlap(area1: PlayerArea, area2: PlayerArea): boolean {
+  // There is certainly simpler code, but I figured that there will always be 
+  // a corner of one area inside another area if the overlap, so I check that here.
+  // TODO: fix this with the correct string of if statements so it's efficient.
+  let area1Points = getPointsFromArea(area1);
+  let area2Points = getPointsFromArea(area2);
+  for (let point of area1Points) {
+    if (isPointInArea(point, area2)) return true;
+  }
 
+  for (let point of area2Points) {
+    if (isPointInArea(point, area1)) return true;
+  }
+
+  return false;
 }
 
 // Returns an array of areas that cover the same space as (positive - negative) area
