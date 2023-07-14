@@ -62,6 +62,19 @@
                 this.hex = hex;
             }
 
+            static RED() { return new Color("FF0000"); }
+            static GREEN() { return new Color("00FF00"); }
+            static BLUE() { return new Color("0000FF"); }
+            static PURPLE() { return new Color("FF00FF"); }
+            static YELLOW() { return new Color("FFFF00"); }
+            static CYAN() { return new Color("00FFFF"); }
+            static BLACK() { return new Color("000000"); }
+            static WHITE() { return new Color("FFFFFF"); }
+            static ORANGE() { return new Color("FF9900"); }
+            static MINT() { return new Color("00FF99"); }
+            static LIME() { return new Color("99FF00"); }
+            static PINK() { return new Color("FF99DD"); }
+
             setAsFill(ctx) {
                 this.prevFill = ctx.fillStyle;
                 ctx.fillStyle = '#' + this.hex;
@@ -114,6 +127,7 @@
                 this.topRight = new Point(highX, highY);
             }
 
+            // In screen space, y is reversed
             screenRectify() {
                 let p1 = this.bottomLeft;
                 let p2 = this.topRight;
@@ -135,8 +149,9 @@
             }
 
             drawOnMap(ctx, map) {
-                let bl = map.mapToScreen(this.bottomLeft);
-                let tr = map.mapToScreen(this.topRight);
+                let mapRect = map.rectMapToScreen(this);
+                let bl = mapRect.bottomLeft;
+                let tr = mapRect.topRight;
                 let width = tr.x - bl.x;
                 let height = tr.y - bl.y;
                 this.color.setAsColor(ctx);
@@ -156,7 +171,7 @@
                 // Represents bottom left of camera
                 this.cameraPosition = new Point(0, 0);
                 // # of pixels per map unit
-                this.viewSize = 4;
+                this.viewSize = 25;
             }
 
             addRect(rect) {
@@ -222,31 +237,24 @@
                 return mapVisibleRect;
             }
 
-            drawGrid(ctx) {
+            drawGrid(ctx, lineWidth = 1, color = new Color("555555")) {
                 let vis = this.getVisibleArea();
-                console.log(vis);
                 let sRect = this.rectMapToScreen(vis);
                 let blScreen = sRect.bottomLeft;
                 let trScreen = sRect.topRight;
-                console.log(blScreen);
-                console.log(trScreen);
-                let lineWidth = 0.25;
-                let color = new Color("555555");
                 color.setAsColor(ctx);
                 for (let x=vis.bottomLeft.x; x<vis.topRight.x+1; x++) {
                     let top = trScreen.y;
                     let height = blScreen.y - top;
                     let movingPoint = this.mapToScreen(new Point(x, 0));
-                    ctx.fillRect(movingPoint.x, top, lineWidth, height);
-                    console.log("X drawing " , movingPoint.x, top, lineWidth, height)
+                    ctx.fillRect(movingPoint.x - (lineWidth/2), top, lineWidth, height);
                 }
 
                 for (let y=vis.bottomLeft.y; y<vis.topRight.y+1; y++) {
                     let left = blScreen.x;
                     let width = trScreen.x - left;
                     let movingPoint = this.mapToScreen(new Point(0, y));
-                    ctx.fillRect(left, movingPoint.y, width, lineWidth);
-                    console.log("Y drawing " , left, movingPoint.y, width, lineWidth)
+                    ctx.fillRect(left, movingPoint.y - (lineWidth/2), width, lineWidth);
                 }
 
                 color.restore(ctx);
@@ -257,21 +265,20 @@
             ctx.clearRect(0, 0, canvasWidth, canvasHeight);
         }
 
-        let m1 = new Map();
-        m1.drawGrid(ctx);
-
-        // m1 = new Map();
-        // r1 = new Rect(new Point(0, 0), new Point(50, 50));
-        // r1.draw(ctx)
-        // r2 = new Rect(new Point(25, 25), new Point(50, 50));
-        // r2.color = new Color("0000FF")
-        
+        // Testing area
+        // let m1 = new Map();
+        // m1.drawGrid(ctx);
+        // r1 = new Rect(new Point(5, 5), new Point(10, 10));
+        // r1.color = Color.BLUE();
+        // r2 = new Rect(new Point(5, 12), new Point(12, 15));
+        // r2.color = Color.GREEN();
         // setInterval(() => {
-        //     m1.cameraPosition.x ++;
+        //     m1.cameraPosition.x += 0.02;
         //     clearCanvas();
+        //     m1.drawGrid(ctx);
+        //     r1.drawOnMap(ctx, m1);
         //     r2.drawOnMap(ctx, m1);
-        //     console.log(m1.cameraPosition)
-        // }, 50);
+        // }, 15);
     
     </script>
 </body>
