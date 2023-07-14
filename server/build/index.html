@@ -1,8 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Testing</title>
 
-<script>
-    let hostname = window.location.hostname;
-    const ws = new WebSocket("wss://" + hostname)
-    ws.addEventListener("open", (event) => {
-        ws.send("Messaeaage");
-    })
-</script>
+    <style>
+        html {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        canvas {
+            border: 2px solid black;
+        }
+    </style>
+</head>
+<body>
+    <h1>Canvas testing</h1>
+    <br>
+    <canvas id="canvas"></canvas>
+
+    <script>
+        let hostname = window.location.hostname;
+        const ws = new WebSocket("wss://" + hostname)
+        ws.addEventListener("open", (event) => {
+            ws.send("Messaeaage");
+        })
+
+        const canvasElement = document.getElementById("canvas");
+        const ctx = canvasElement.getContext("2d");
+
+        const canvasWidth = 400;
+        const canvasHeight = 400;
+        canvasElement.setAttribute('width', `${canvasWidth}`);
+        canvasElement.setAttribute('height', `${canvasHeight}`);
+
+        class Point {
+            x;
+            y;
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+            }
+
+            floor() {
+                this.x = Math.floor(this.x);
+                this.y = Math.floor(this.y);
+            }
+
+            ceil() {
+                this.x = Math.ceil(this.x);
+                this.y = Math.ceil(this.y);
+            }
+        }
+
+        class Color {
+            hex;
+            prevFill;
+            prevStroke;
+            constructor(hex) {
+                this.hex = hex;
+            }
+
+            setAsFill(ctx) {
+                this.prevFill = ctx.fillStyle;
+                ctx.fillStyle = '#' + this.hex;
+            }
+
+            setAsStroke(ctx) {
+                this.prevStroke = ctx.strokeStyle;
+                ctx.strokeStyle = '#' + this.hex;
+            }
+
+            restoreFill(ctx) {
+                ctx.fillStyle = this.prevFill;
+            }
+
+            restoreStroke(ctx) {
+                ctx.strokeStyle = this.prevStroke;
+            }
+
+            setAsColor(ctx) {
+                this.setAsFill(ctx);
+                this.setAsStroke(ctx);
+            }
+
+            restore(ctx) {
+                this.restoreFill(ctx);
+                this.restoreStroke(ctx);
+            }
+        }
+
+        class Rect {
+            bottomLeft;
+            topRight;
+            color;
+            constructor(bottomLeft, topRight) {
+                this.bottomLeft = bottomLeft;
+                this.topRight = topRight;
+                this.color = new Color("FF0000");
+            }
+
+            // Makes sure bottomLeft is bottommost leftmost, etc
+            rectify() {
+                let p1 = this.bottomLeft;
+                let p2 = this.topRight;
+                let lowY, highY, lowX, highX;
+                lowX = p1.x < p2.x ? p1.x : p2.x;
+                lowY = p1.y < p2.y ? p1.y : p2.y;
+                highX = p1.x > p2.x ? p1.x : p2.x;
+                highY = p1.y > p2.y ? p1.y : p2.y;
+                this.bottomLeft = new Point(lowX, lowY);
+                this.topRight = new Point(highX, highY);
+            }
+
+            screenRectify() {
+                let p1 = this.bottomLeft;
+                let p2 = this.topRight;
+                let lowY, highY, lowX, highX;
+                lowX = p1.x < p2.x ? p1.x : p2.x;
+                lowY = p1.y < p2.y ? p1.y : p2.y;
+                highX = p1.x > p2.x ? p1.x : p2.x;
+                highY = p1.y > p2.y ? p1.y : p2.y;
+                this.bottomLeft = new Point(lowX, highY);
+                this.topRight = new Point(highX, lowY);
+            }
+
+            draw(ctx) {
+                let width = this.topRight.x - this.bottomLeft.x;
+                let height = this.topRight.y - this.bottomLeft.y;
+                this.color.setAsColor(ctx);
+                ctx.fillRect(this.bottomLeft.x, this.bottomLeft.y, width, height);
+                this.color.restore(ctx);
+            }
+
+            drawOnMap(ctx, map) {
+                let bl = map.mapToScreen(this.bottomLeft);
+                let tr = map.mapToScreen(this.topRight);
+                let width = tr.x - bl.x;
+                let height = tr.y - bl.y;
+                this.color.setAsColor(ctx);
+                ctx.fillRect(bl.x, bl.y, width, height);
+                this.color.restore(ctx);
+            }
+        }
+
+        class Map {
+            rects;
+            cameraPosition;
+            viewSize;
+            constructor() {
+                // List of rects to draw on screen
+                this.rects = [];
+                // Position of the camera on the map in map coords
+                // Represents bottom left of camera
+                this.cameraPosition = new Point(0, 0);
+                // # of pixels per map unit
+                this.viewSize = 4;
+            }
+
+            addRect(rect) {
+                this.rects.push(rect);
+            }
+
+            // Takes in a map coordinate
+            // Returns a coordinate in screen space
+            mapToScreen(point) {
+                let x = point.x;
+                let y = point.y;
+                // Camera position
+                x -= this.cameraPosition.x;
+                y -= this.cameraPosition.y;
+                // View size
+                x *= this.viewSize;
+                y *= this.viewSize;
+                // Q1 to inverted (cartesian to screen)
+                return new Point(x, canvasHeight - y);
+            }
+
+            rectMapToScreen(rect) {
+                let bl = this.mapToScreen(rect.bottomLeft);
+                let tr = this.mapToScreen(rect.topRight);
+                let newRect = new Rect(bl, tr);
+                newRect.screenRectify();
+                return newRect;
+            }
+
+            rectScreenToMap(rect) {
+                let bl = this.screenToMap(rect.bottomLeft);
+                let tr = this.screenToMap(rect.topRight);
+                let newRect = new Rect(bl, tr);
+                newRect.rectify();
+                return newRect;
+            }
+
+            screenToMap(point) {
+                let x = point.x;
+                let y = point.y;
+                y = canvasHeight - y;
+                // View size
+                x /= this.viewSize;
+                y /= this.viewSize;
+                // Camera position
+                x += this.cameraPosition.x;
+                y += this.cameraPosition.y;
+                return new Point(x, y);
+            }
+
+            draw(ctx) {
+                for (let rect of this.rects) {
+                    rect.drawOnMap(ctx, this);
+                }
+            }
+
+            // Returns a rect in map space that covers the entire canvas
+            getVisibleArea() {
+                let screenVisibleRect = new Rect(new Point(0, 0), new Point(canvasWidth, canvasHeight));
+                let mapVisibleRect = this.rectScreenToMap(screenVisibleRect);
+                mapVisibleRect.bottomLeft.floor();
+                mapVisibleRect.topRight.ceil();
+                return mapVisibleRect;
+            }
+
+            drawGrid(ctx) {
+                let vis = this.getVisibleArea();
+                console.log(vis);
+                let sRect = this.rectMapToScreen(vis);
+                let blScreen = sRect.bottomLeft;
+                let trScreen = sRect.topRight;
+                console.log(blScreen);
+                console.log(trScreen);
+                let lineWidth = 0.25;
+                let color = new Color("555555");
+                color.setAsColor(ctx);
+                for (let x=vis.bottomLeft.x; x<vis.topRight.x+1; x++) {
+                    let top = trScreen.y;
+                    let height = blScreen.y - top;
+                    let movingPoint = this.mapToScreen(new Point(x, 0));
+                    ctx.fillRect(movingPoint.x, top, lineWidth, height);
+                    console.log("X drawing " , movingPoint.x, top, lineWidth, height)
+                }
+
+                for (let y=vis.bottomLeft.y; y<vis.topRight.y+1; y++) {
+                    let left = blScreen.x;
+                    let width = trScreen.x - left;
+                    let movingPoint = this.mapToScreen(new Point(0, y));
+                    ctx.fillRect(left, movingPoint.y, width, lineWidth);
+                    console.log("Y drawing " , left, movingPoint.y, width, lineWidth)
+                }
+
+                color.restore(ctx);
+            }
+        }
+        
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+        }
+
+        let m1 = new Map();
+        m1.drawGrid(ctx);
+
+        // m1 = new Map();
+        // r1 = new Rect(new Point(0, 0), new Point(50, 50));
+        // r1.draw(ctx)
+        // r2 = new Rect(new Point(25, 25), new Point(50, 50));
+        // r2.color = new Color("0000FF")
+        
+        // setInterval(() => {
+        //     m1.cameraPosition.x ++;
+        //     clearCanvas();
+        //     r2.drawOnMap(ctx, m1);
+        //     console.log(m1.cameraPosition)
+        // }, 50);
+    
+    </script>
+</body>
+</html>
