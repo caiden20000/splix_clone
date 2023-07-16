@@ -182,6 +182,15 @@
             }
         }
 
+        class PlayerArea extends Rect {
+            name;
+            constructor(bottomLeft, topRight, name, color) {
+                super(bottomLeft, topRight);
+                this.name = name;
+                this.color = color;
+            }
+        }
+
         class Map {
             rects;
             cameraPosition;
@@ -294,6 +303,7 @@
             color;
             // Speed = map units per second
             speed;
+            name;
             constructor(position, speed, direction = "up") {
                 this.position = position;
                 this.direction = direction;
@@ -363,7 +373,7 @@
             }
 
             updateQueuedDirection() {
-                let turnTolerance = 0.25;
+                let turnTolerance = 0.2;
                 if (this.queuedDirection != this.direction) {
                     let dist;
                     if (this.queuedDirection == "up" || this.queuedDirection == "down") {
@@ -427,11 +437,9 @@
             updatePlayers();
         }, 50);
 
-        // TODO: The turn will be queued until the next time
-        //       the player passes a whole number coordinate.
+        
         window.addEventListener("keydown", e => {
-            if ([...'wasd'].includes(e.key) && mainPlayer != undefined) {
-                console.log(mainPlayer);
+            if (mainPlayer != undefined) {
                 if (e.key == 'w') mainPlayer.queueDirection("up");
                 if (e.key == 's') mainPlayer.queueDirection("down");
                 if (e.key == 'a') mainPlayer.queueDirection("left");
