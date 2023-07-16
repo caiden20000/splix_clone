@@ -2,6 +2,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import http, { ClientRequest, IncomingMessage, RequestListener, ServerResponse } from 'http';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'node:fs/promises';
+import { json } from 'stream/consumers';
 
 function requestListener(req: IncomingMessage, res: ServerResponse) {
   if (req.url == "/index") {
@@ -40,7 +41,7 @@ type GameMessage = {
   requestType: "position";
 } | {
   requestType: "turning";
-  direction: "left" | "right";
+  direction: string; //"left" | "right" | "straight";
 } | {
   requestType: "map";
   pos: Point;
@@ -55,7 +56,9 @@ type Point = {
 type Player = {
   uuid: string;
   pos: Point;
-  facing: "left" | "right" | "up" | "down";
+  color: string;
+  name: string;
+  facing: string; // "left" | "right" | "up" | "down";
 }
 
 type PlayerTrail = {
@@ -67,6 +70,7 @@ type PlayerArea = {
   uuid: string; // Player uuid
   bottomLeft: Point;
   topRight: Point;
+  color: string;
 }
 
 // Represent map with an array of PlayerAreas
@@ -75,9 +79,9 @@ var map: PlayerArea[] = [];
 const mapWidth = 100;
 const mapHeight = 100;
 
-
-function addArea(point1: Point, point2: Point, uuid: string): void {
-  // Find the bottomLeft and topRight points.
+function rectify(area: PlayerArea): PlayerArea {
+  let point1 = area.bottomLeft;
+  let point2 = area.topRight;
   let lowY, highY, lowX, highX;
   lowX = point1.x < point2.x ? point1.x : point2.x;
   lowY = point1.y < point2.y ? point1.y : point2.y;
@@ -85,8 +89,7 @@ function addArea(point1: Point, point2: Point, uuid: string): void {
   highY = point1.y > point2.y ? point1.y : point2.y;
   let bottomLeft: Point = {x: lowX, y: lowY};
   let topRight: Point = {x: highX, y: highY};
-  // Put a PlayerArea object into map.
-  map.push({uuid, bottomLeft, topRight});
+  return {bottomLeft: bottomLeft, topRight: topRight, uuid: area.uuid, color: area.color};
 }
 
 function getPointsFromArea(area: PlayerArea): Point[] {
@@ -118,12 +121,12 @@ function doAreasOverlap(area1: PlayerArea, area2: PlayerArea): boolean {
 
 // Returns an array of areas that cover the same space as (positive - negative) area
 function subtractAreaFromArea(positive: PlayerArea, negative: PlayerArea): PlayerArea[] {
-
+  return []; // TODO
 }
 
 // Returns an array of areas that are consolodated to not have overlapping areas
 function simplifyAreas(areas: PlayerArea[]): PlayerArea[] {
-
+  return []; // TODO
 }
 
 function isPointInArea(point: Point, area: PlayerArea): boolean {
@@ -144,10 +147,9 @@ function getMapValueAt(point: Point): string | null {
 
 // Units per second
 const playerSpeed = 2;
-
 var players = new Map<string, Player>();
-
 var clients = new Map<string, WebSocket>();
+
 
 function addClient(uuid: string, con: WebSocket): void {
   clients.set(uuid, con);
@@ -163,7 +165,22 @@ wsServer.on("connection", (ws: WebSocket) => {
   console.log("Connection opened. User added. " + userID)
 
   ws.on("message", event => {
-    console.log("Received message: " + event)
+    try {
+      let msg: GameMessage = JSON.parse(event.toString());
+      if (msg.requestType == "position") {
+        positionResponse(userID);
+      }
+      else if (msg.requestType == "turning") {
+        // TODO: Determine if allowed to turn
+        // then EDIT the player data before returning positions.
+        positionResponse(userID);
+      }
+      else if (msg.requestType == "map") {
+        // Map response here
+      }
+    } catch (err) {
+      console.log("Received NON-JSON message: " + event)
+    }
   })
 
   ws.on("error", event => {
@@ -175,3 +192,70 @@ wsServer.on("connection", (ws: WebSocket) => {
     removeClient(userID);
   })
 })
+
+function positionResponse(uuid: string) {
+  let ws = clients.get(uuid);
+  if (ws == undefined) return false;
+
+  let playerList = [];
+  for (let player of players.values()) {
+    playerList.push({
+      uuid: player.uuid,
+      name: player.name,
+      color: player.color,
+      x: player.pos.x,
+      y: player.pos.y,
+    })
+  }
+  ws.send(JSON.stringify(playerList));
+}
+
+// Random int, inclusive
+function r(min: number, max: number): number {
+  return Math.round(Math.random()*(max-min)+min);
+}
+
+// Won't give a position [buffer] units close to the edge of the map.
+function randomPosInMap(buffer: number = 10): Point {
+  return {x: r(buffer, mapWidth - buffer), y: r(buffer, mapHeight - buffer)};
+}
+
+function initGameForPlayer(uuid: string, name="Player", color: string = "00FF00", facing: string = "right") {
+  let player = {
+    uuid: uuid,
+    pos: randomPosInMap(10),
+    name: name,
+    color: color,
+    facing: facing
+  };
+  let playerInitArea: PlayerArea = {
+    uuid: uuid,
+    color: color,
+    bottomLeft: {x: player.pos.x - 1, y: player.pos.y - 1},
+    topRight: {x: player.pos.x + 1, y: player.pos.y + 1},
+  }
+  players.set(uuid, player);
+  map.push(playerInitArea);
+}
+
+function updatePlayer(player: Player, dt: number) {
+  if (player.facing == "up") player.pos.y += playerSpeed * dt;
+  if (player.facing == "down") player.pos.y -= playerSpeed * dt;
+  if (player.facing == "right") player.pos.x += playerSpeed * dt;
+  if (player.facing == "left") player.pos.x -= playerSpeed * dt;
+}
+
+var lastTime = Date.now();
+
+function gameLoop() {
+  let time = Date.now();
+  let dt = time - lastTime;
+
+  for (let player of players.values()) updatePlayer(player, dt);
+
+  lastTime = time;
+}
+
+setInterval(() => {
+  gameLoop();
+}, 20);
