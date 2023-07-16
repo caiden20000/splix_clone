@@ -4,19 +4,30 @@ import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'node:fs/promises';
 import { json } from 'stream/consumers';
 
+function returnFile(res: ServerResponse, contentType: string, path:  string) {
+  fs.readFile(__dirname + path)
+    .then(contents => {
+    res.setHeader("Content-Type", contentType);
+    res.writeHead(200);
+    res.end(contents);  // Pass in the text/html here
+  }).catch(err => {
+    res.writeHead(500);
+    res.end(err);
+    return;
+  });
+}
+
 function requestListener(req: IncomingMessage, res: ServerResponse) {
   if (req.url == "/index") {
-    fs.readFile(__dirname + "/index.html")
-      .then(contents => {
-      res.setHeader("Content-Type", "text/html");
-      res.writeHead(200);
-      res.end(contents);  // Pass in the text/html here
-    }).catch(err => {
-      res.writeHead(500);
-      res.end(err);
-      return;
-    });
-  } else {
+    returnFile(res, "text/html", "/index.html");
+  } 
+  else if (req.url == "/index/script.js") {
+    returnFile(res, "text/javascript", "/script.js");
+  }
+  else if (req.url == "/index/style.css") {
+    returnFile(res, "text/css", "/style.css");
+  }
+  else {
     res.writeHead(404);
     res.end("Content not found.")
   }
