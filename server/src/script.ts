@@ -4,8 +4,8 @@ ws.addEventListener("open", (event) => {
     ws.send("Messaeaage");
 })
 
-const canvasElement = document.getElementById("canvas");
-const ctx = canvasElement.getContext("2d");
+const canvasElement = <HTMLCanvasElement>document.getElementById("canvas");
+const ctx = <CanvasRenderingContext2D>canvasElement.getContext("2d");
 
 const canvasWidth = 400;
 const canvasHeight = 400;
@@ -15,7 +15,7 @@ canvasElement.setAttribute('height', `${canvasHeight}`);
 class Point {
     x;
     y;
-    constructor(x, y) {
+    constructor(x: number, y: number) {
         this.x = x;
         this.y = y;
     }
@@ -31,19 +31,21 @@ class Point {
     }
 }
 
-function clamp(min, max, num) {
+function clamp(min: number, max: number, num: number) {
     return Math.max(min, Math.min(max, num));
 }
 
 class Color {
-    hex;
-    prevFill;
-    prevStroke;
-    constructor(hex) {
+    hex: string;
+    prevFill: string | CanvasGradient | CanvasPattern;
+    prevStroke: string | CanvasGradient | CanvasPattern;
+    constructor(hex: string) {
         this.hex = hex;
+        this.prevFill = "";
+        this.prevStroke = "";
     }
 
-    multiply(multiplier) {
+    multiply(multiplier: number) {
         let digits = this.hex.split("");
         let r = parseInt(digits[0] + digits[1], 16);
         let g = parseInt(digits[2] + digits[3], 16);
@@ -74,30 +76,30 @@ class Color {
     static LIME() { return new Color("99FF00"); }
     static PINK() { return new Color("FF99DD"); }
 
-    setAsFill(ctx) {
+    setAsFill(ctx: CanvasRenderingContext2D) {
         this.prevFill = ctx.fillStyle;
         ctx.fillStyle = '#' + this.hex;
     }
 
-    setAsStroke(ctx) {
+    setAsStroke(ctx: CanvasRenderingContext2D) {
         this.prevStroke = ctx.strokeStyle;
         ctx.strokeStyle = '#' + this.hex;
     }
 
-    restoreFill(ctx) {
+    restoreFill(ctx: CanvasRenderingContext2D) {
         ctx.fillStyle = this.prevFill;
     }
 
-    restoreStroke(ctx) {
+    restoreStroke(ctx: CanvasRenderingContext2D) {
         ctx.strokeStyle = this.prevStroke;
     }
 
-    setAsColor(ctx) {
+    setAsColor(ctx: CanvasRenderingContext2D) {
         this.setAsFill(ctx);
         this.setAsStroke(ctx);
     }
 
-    restore(ctx) {
+    restore(ctx: CanvasRenderingContext2D) {
         this.restoreFill(ctx);
         this.restoreStroke(ctx);
     }
@@ -107,7 +109,7 @@ class Rect {
     bottomLeft;
     topRight;
     color;
-    constructor(bottomLeft, topRight) {
+    constructor(bottomLeft: Point, topRight: Point) {
         this.bottomLeft = bottomLeft;
         this.topRight = topRight;
         this.color = new Color("FF0000");
@@ -139,7 +141,7 @@ class Rect {
         this.topRight = new Point(highX, lowY);
     }
 
-    draw(ctx) {
+    draw(ctx: CanvasRenderingContext2D) {
         let width = this.topRight.x - this.bottomLeft.x;
         let height = this.topRight.y - this.bottomLeft.y;
         this.color.setAsColor(ctx);
@@ -147,7 +149,7 @@ class Rect {
         this.color.restore(ctx);
     }
 
-    drawOnMap(ctx, map) {
+    drawOnMap(ctx: CanvasRenderingContext2D, map: GameMap) {
         let mapRect = map.rectMapToScreen(this);
         let bl = mapRect.bottomLeft;
         let tr = mapRect.topRight;
@@ -160,18 +162,19 @@ class Rect {
 }
 
 class PlayerArea extends Rect {
-    name;
-    constructor(bottomLeft, topRight, name, color) {
+    name: string;
+    color: Color;
+    constructor(bottomLeft: Point, topRight: Point, name: string, color: Color) {
         super(bottomLeft, topRight);
         this.name = name;
         this.color = color;
     }
 }
 
-class Map {
-    rects;
-    cameraPosition;
-    viewSize;
+class GameMap {
+    rects: Rect[];
+    cameraPosition: Point;
+    viewSize: number;
     constructor() {
         // List of rects to draw on screen
         this.rects = [];
@@ -182,13 +185,13 @@ class Map {
         this.viewSize = 25;
     }
 
-    addRect(rect) {
+    addRect(rect: Rect) {
         this.rects.push(rect);
     }
 
     // Takes in a map coordinate
     // Returns a coordinate in screen space
-    mapToScreen(point) {
+    mapToScreen(point: Point) {
         let x = point.x;
         let y = point.y;
         // Camera position
@@ -201,7 +204,7 @@ class Map {
         return new Point(x, canvasHeight - y);
     }
 
-    rectMapToScreen(rect) {
+    rectMapToScreen(rect: Rect) {
         let bl = this.mapToScreen(rect.bottomLeft);
         let tr = this.mapToScreen(rect.topRight);
         let newRect = new Rect(bl, tr);
@@ -209,7 +212,7 @@ class Map {
         return newRect;
     }
 
-    rectScreenToMap(rect) {
+    rectScreenToMap(rect: Rect) {
         let bl = this.screenToMap(rect.bottomLeft);
         let tr = this.screenToMap(rect.topRight);
         let newRect = new Rect(bl, tr);
@@ -217,7 +220,7 @@ class Map {
         return newRect;
     }
 
-    screenToMap(point) {
+    screenToMap(point: Point) {
         let x = point.x;
         let y = point.y;
         y = canvasHeight - y;
@@ -230,14 +233,14 @@ class Map {
         return new Point(x, y);
     }
 
-    draw(ctx) {
+    draw(ctx: CanvasRenderingContext2D) {
         for (let rect of this.rects) {
             rect.drawOnMap(ctx, this);
         }
     }
 
     // Returns a rect in map space that covers the entire canvas
-    getVisibleArea() {
+    getVisibleArea(): Rect {
         let screenVisibleRect = new Rect(new Point(0, 0), new Point(canvasWidth, canvasHeight));
         let mapVisibleRect = this.rectScreenToMap(screenVisibleRect);
         mapVisibleRect.bottomLeft.floor();
@@ -245,7 +248,7 @@ class Map {
         return mapVisibleRect;
     }
 
-    drawGrid(ctx, lineWidth = 1, color = new Color("555555")) {
+    drawGrid(ctx: CanvasRenderingContext2D, lineWidth = 1, color = new Color("555555")) {
         let vis = this.getVisibleArea();
         let sRect = this.rectMapToScreen(vis);
         let blScreen = sRect.bottomLeft;
@@ -273,28 +276,31 @@ function clearCanvas() {
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 }
 
+type Direction = "up" | "down" | "left" | "right";
+
 class Player {
-    direction;
-    queuedDirection;
-    position;
-    color;
+    direction: Direction;
+    queuedDirection: Direction;
+    position: Point;
+    color: Color;
     // Speed = map units per second
-    speed;
-    name;
-    constructor(position, speed, direction = "up") {
+    speed: number;
+    name: string;
+    constructor(position: Point, speed: number, name: string = "TestPlayer", direction: Direction = "up") {
         this.position = position;
         this.direction = direction;
         this.queuedDirection = direction;
         this.color = Color.GREEN();
         this.speed = speed;
+        this.name = name;
     }
 
-    setState(position, direction) {
+    setState(position: Point, direction: Direction) {
         this.position = position;
         this.direction = direction;
     }
 
-    legalDirection(dir) {
+    legalDirection(dir: string) {
         return ["up", "down", "left", "right"].includes(dir);
     }
 
@@ -312,21 +318,21 @@ class Player {
         else if (this.direction == "left") this.direction = "up";
     }
 
-    getOppositeDirection(dir) {
+    getOppositeDirection(dir: Direction) {
         if (dir == "up") return "down";
         if (dir == "down") return "up";
         if (dir == "left") return "right";
         if (dir == "right") return "left";
     }
 
-    turn(dir) {
+    turn(dir: Direction) {
         if (this.direction == this.getOppositeDirection(dir)) return;
         this.direction = dir;
         this.adjustPosition();
     }
 
     // dt in seconds
-    move(dt) {
+    move(dt: number) {
         if (this.direction == "up") this.position.y += this.speed * dt;
         if (this.direction == "down") this.position.y -= this.speed * dt;
         if (this.direction == "right") this.position.x += this.speed * dt;
@@ -344,7 +350,7 @@ class Player {
         }
     }
 
-    queueDirection(dir) {
+    queueDirection(dir: Direction) {
         if (dir == this.direction || !this.legalDirection(dir)) return;
         this.queuedDirection = dir;
     }
@@ -352,7 +358,7 @@ class Player {
     updateQueuedDirection() {
         let turnTolerance = 0.2;
         if (this.queuedDirection != this.direction) {
-            let dist;
+            let dist = 1;
             if (this.queuedDirection == "up" || this.queuedDirection == "down") {
                 dist = Math.abs(Math.round(this.position.x) - this.position.x);
             }
@@ -363,7 +369,7 @@ class Player {
         }
     }
 
-    drawOnMap(ctx, map, scale=0.8) {
+    drawOnMap(ctx: CanvasRenderingContext2D, map: GameMap, scale=0.8) {
         let screenPos = map.mapToScreen(this.position);
         let size = map.viewSize * scale;
         ctx.beginPath();
@@ -380,9 +386,9 @@ class Player {
     }
 }
 
-var mainPlayer = undefined;
+var mainPlayer: Player;
 mainPlayer = new Player(new Point(6, 2), 3);
-var players = [];
+var players: Player[] = [];
 let lastTime = Date.now();
 
 function updatePlayers() {
@@ -397,11 +403,11 @@ function updatePlayers() {
 }
 
 // Testing area
-let m1 = new Map();
+let m1 = new GameMap();
 m1.drawGrid(ctx);
-r1 = new Rect(new Point(5, 5), new Point(10, 10));
+let r1 = new Rect(new Point(5, 5), new Point(10, 10));
 r1.color = Color.BLUE();
-r2 = new Rect(new Point(5, 12), new Point(12, 15));
+let r2 = new Rect(new Point(5, 12), new Point(12, 15));
 r2.color = Color.GREEN();
 players.push(mainPlayer);
 setInterval(() => {
@@ -412,8 +418,6 @@ setInterval(() => {
     r2.drawOnMap(ctx, m1);
     mainPlayer.drawOnMap(ctx, m1);
     updatePlayers();
-
-    
 }, 50);
 
 
