@@ -60,7 +60,7 @@ class Color {
         if (gs.length == 1) gs = "0" + gs;
         if (bs.length == 1) bs = "0" + bs;
         let result = rs + gs + bs;
-        return result;
+        return new Color(result);
     }
 
     static RED() { return new Color("FF0000"); }
@@ -162,11 +162,11 @@ class Rect {
 }
 
 class PlayerArea extends Rect {
-    name: string;
+    player: Player;
     color: Color;
-    constructor(bottomLeft: Point, topRight: Point, name: string, color: Color) {
+    constructor(bottomLeft: Point, topRight: Point, player: Player, color: Color) {
         super(bottomLeft, topRight);
-        this.name = name;
+        this.player = player;
         this.color = color;
     }
 }
@@ -204,6 +204,19 @@ class GameMap {
         return new Point(x, canvasHeight - y);
     }
 
+    screenToMap(point: Point) {
+        let x = point.x;
+        let y = point.y;
+        y = canvasHeight - y;
+        // View size
+        x /= this.viewSize;
+        y /= this.viewSize;
+        // Camera position
+        x += this.cameraPosition.x;
+        y += this.cameraPosition.y;
+        return new Point(x, y);
+    }
+
     rectMapToScreen(rect: Rect) {
         let bl = this.mapToScreen(rect.bottomLeft);
         let tr = this.mapToScreen(rect.topRight);
@@ -218,19 +231,6 @@ class GameMap {
         let newRect = new Rect(bl, tr);
         newRect.rectify();
         return newRect;
-    }
-
-    screenToMap(point: Point) {
-        let x = point.x;
-        let y = point.y;
-        y = canvasHeight - y;
-        // View size
-        x /= this.viewSize;
-        y /= this.viewSize;
-        // Camera position
-        x += this.cameraPosition.x;
-        y += this.cameraPosition.y;
-        return new Point(x, y);
     }
 
     draw(ctx: CanvasRenderingContext2D) {
@@ -277,22 +277,49 @@ function clearCanvas() {
 }
 
 type Direction = "up" | "down" | "left" | "right";
+function getLeft(dir: Direction) {
+    if (dir == "up") return "left";
+    else if (dir == "left") return "down";
+    else if (dir == "down") return "right";
+    else if (dir == "right") return "up";
+}
+
+function getRight(dir: Direction) {
+    if (dir == "up") return "right";
+    else if (dir == "right") return "down";
+    else if (dir == "down") return "left";
+    else if (dir == "left") return "up";
+}
+
+function getOppositeDirection(dir: Direction) {
+    if (dir == "up") return "down";
+    if (dir == "down") return "up";
+    if (dir == "left") return "right";
+    if (dir == "right") return "left";
+}
 
 class Player {
     direction: Direction;
-    queuedDirection: Direction;
     position: Point;
     color: Color;
     // Speed = map units per second
     speed: number;
     name: string;
+    primaryQueuedDirection: Direction;
+    secondaryQueuedDirection: Direction;
+    queueTrigger: number;
+    turningCooldown: boolean;
     constructor(position: Point, speed: number, name: string = "TestPlayer", direction: Direction = "up") {
         this.position = position;
         this.direction = direction;
-        this.queuedDirection = direction;
         this.color = Color.GREEN();
         this.speed = speed;
         this.name = name;
+
+        this.primaryQueuedDirection = direction;
+        this.secondaryQueuedDirection = direction;
+        this.queueTrigger = -1;
+        this.turningCooldown = true;
     }
 
     setState(position: Point, direction: Direction) {
@@ -300,35 +327,12 @@ class Player {
         this.direction = direction;
     }
 
-    legalDirection(dir: string) {
-        return ["up", "down", "left", "right"].includes(dir);
-    }
-
-    turnLeft() {
-        if (this.direction == "up") this.direction = "left";
-        else if (this.direction == "left") this.direction = "down";
-        else if (this.direction == "down") this.direction = "right";
-        else if (this.direction == "right") this.direction = "up";
-    }
-
-    turnRight() {
-        if (this.direction == "up") this.direction = "right";
-        else if (this.direction == "right") this.direction = "down";
-        else if (this.direction == "down") this.direction = "left";
-        else if (this.direction == "left") this.direction = "up";
-    }
-
-    getOppositeDirection(dir: Direction) {
-        if (dir == "up") return "down";
-        if (dir == "down") return "up";
-        if (dir == "left") return "right";
-        if (dir == "right") return "left";
-    }
-
-    turn(dir: Direction) {
-        if (this.direction == this.getOppositeDirection(dir)) return;
-        this.direction = dir;
-        this.adjustPosition();
+    // Returns true if dir is at a right angle to this.direction
+    // Players cannot rotate 180 degrees in one go.
+    legalDirection(dir: Direction) {
+        let leegal = ["up", "down"].includes(this.direction) == ["left", "right"].includes(dir);
+        console.log(`${this.direction} ---> ${dir} is ${leegal}`);
+        return leegal;
     }
 
     // dt in seconds
@@ -337,8 +341,10 @@ class Player {
         if (this.direction == "down") this.position.y -= this.speed * dt;
         if (this.direction == "right") this.position.x += this.speed * dt;
         if (this.direction == "left") this.position.x -= this.speed * dt;
+        this.turningCooldown = false;
     }
 
+    // Centers the player in the square on the axis of movement.
     adjustPosition() {
         if (this.direction == "up" || this.direction == "down") {
             // Center horizontally
@@ -350,25 +356,52 @@ class Player {
         }
     }
 
+    // button press -> server request -> response handler -> queueDirection
     queueDirection(dir: Direction) {
-        if (dir == this.direction || !this.legalDirection(dir)) return;
-        this.queuedDirection = dir;
-    }
-
-    updateQueuedDirection() {
-        let turnTolerance = 0.2;
-        if (this.queuedDirection != this.direction) {
-            let dist = 1;
-            if (this.queuedDirection == "up" || this.queuedDirection == "down") {
-                dist = Math.abs(Math.round(this.position.x) - this.position.x);
+        if (this.legalDirection(dir)) {
+            this.primaryQueuedDirection = dir;
+            this.secondaryQueuedDirection = dir;
+            if (this.queueTrigger == -1) {
+                if (this.direction == "up") this.queueTrigger = Math.ceil(this.position.y);
+                if (this.direction == "down") this.queueTrigger = Math.floor(this.position.y);
+                if (this.direction == "right") this.queueTrigger = Math.ceil(this.position.x);
+                if (this.direction == "left") this.queueTrigger = Math.floor(this.position.x);
             }
-            if (this.queuedDirection == "left" || this.queuedDirection == "right") {
-                dist = Math.abs(Math.round(this.position.y) - this.position.y);
-            }
-            if (dist <= turnTolerance) this.turn(this.queuedDirection);
+        } else if (this.secondaryQueuedDirection == this.primaryQueuedDirection) {
+            this.secondaryQueuedDirection = dir;
         }
     }
 
+    // Changes to queued direction on whole number positions
+    // Call every frame
+    updateQueuedDirection() {
+        if (this.legalDirection(this.primaryQueuedDirection) == false) return;
+        if (this.turningCooldown) return;
+        if ((this.direction == "up" && this.position.y >= this.queueTrigger) ||
+            (this.direction == "down" && this.position.y <= this.queueTrigger) ||
+            (this.direction == "right" && this.position.x >= this.queueTrigger) ||
+            (this.direction == "left" && this.position.x <= this.queueTrigger)) 
+        {
+            if (["up", "down"].includes(this.direction)) this.position.y = this.queueTrigger;
+            if (["left", "right"].includes(this.direction)) this.position.x = this.queueTrigger;
+            this.direction = this.primaryQueuedDirection;
+            this.adjustPosition();
+            this.primaryQueuedDirection = this.secondaryQueuedDirection;
+            this.turningCooldown = true;
+            if (this.primaryQueuedDirection == this.direction) {
+                this.queueTrigger = -1;
+            } else {
+                if (this.direction == "up") this.queueTrigger = this.position.y + 1;
+                if (this.direction == "down") this.queueTrigger = this.position.y - 1;
+                if (this.direction == "right") this.queueTrigger = this.position.x + 1;
+                if (this.direction == "left") this.queueTrigger = this.position.x - 1;
+            }
+        }
+    }
+
+    // Draws the Player circle in the middle of a square, despite the position
+    // Technically being "between" the squares.
+    // 0, 0 will show the player on the bottom-leftmost sqaure.
     drawOnMap(ctx: CanvasRenderingContext2D, map: GameMap, scale=0.8) {
         let screenPos = map.mapToScreen(this.position);
         let size = map.viewSize * scale;
@@ -378,7 +411,7 @@ class Player {
         this.color.setAsColor(ctx);
         ctx.fill();
         this.color.restore(ctx);
-        let darker = new Color(this.color.multiply(0.75));
+        let darker =this.color.multiply(0.75);
         darker.setAsColor(ctx);
         ctx.lineWidth = 2;
         ctx.stroke();

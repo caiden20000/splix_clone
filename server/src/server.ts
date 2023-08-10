@@ -4,6 +4,9 @@ import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'node:fs/promises';
 import { json } from 'stream/consumers';
 
+// This is for me, not you:
+// https://jsfiddle.net/zsmh1jLf/16/
+
 function returnFile(res: ServerResponse, contentType: string, path:  string) {
   fs.readFile(__dirname + path)
     .then(contents => {
@@ -21,10 +24,10 @@ function requestListener(req: IncomingMessage, res: ServerResponse) {
   if (req.url == "/index") {
     returnFile(res, "text/html", "/index.html");
   } 
-  else if (req.url == "/index/script.js") {
+  else if (req.url == "/script.js") {
     returnFile(res, "text/javascript", "/script.js");
   }
-  else if (req.url == "/index/style.css") {
+  else if (req.url == "/style.css") {
     returnFile(res, "text/css", "/style.css");
   }
   else {
